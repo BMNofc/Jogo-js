@@ -8,17 +8,7 @@ body {
     align-items: center;
     height: 100vh;
     margin: 0;
-}
-
-background {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url('background.jpg');
-    background-size: cover;
-    z-index: -1;
+    overflow: hidden; /* Evita barras de rolagem */
 }
 
 h1 {
@@ -26,6 +16,41 @@ h1 {
 }
 
 #gameCanvas {
-    background-color: #87CEEB; /* Cor do céu */
+    background-color: #87CEEB;
     border: 2px solid #fff;
+    width: 95vw; /* O canvas ocupa 95% da largura da tela */
+    height: auto; /* A altura se ajusta automaticamente para manter a proporção */
+    cursor: pointer;
+}
+
+#controls {
+    display: none; /* Esconde os botões por padrão */
+    width: 100%;
+    position: absolute;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+#controls button {
+    font-size: 2.5em;
+    padding: 10px 20px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 2px solid #fff;
+    color: #fff;
+    border-radius: 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent; /* Remove o destaque de toque em mobile */
+}
+
+/* Mostra os controles apenas em telas pequenas (mobile) */
+@media (max-width: 768px) {
+    #controls {
+        display: flex;
+    }
+    h1 {
+        display: none; /* Esconde o título em telas pequenas */
+    }
 }
