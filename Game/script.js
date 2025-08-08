@@ -1,8 +1,12 @@
+// =======================================================
+// SEÇÃO 1: CONFIGURAÇÕES E VARIÁVEIS GLOBAIS
+// =======================================================
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-const canvasWidth = canvas.width;
-const canvasHeight = canvas.height;
+// --- Dimensões do Canvas (definidas e atualizadas na função resizeCanvas) ---
+let canvasWidth, canvasHeight;
 
 // --- Estados do Jogo ---
 const GAME_STATE = {
@@ -12,18 +16,11 @@ const GAME_STATE = {
 };
 let currentState = GAME_STATE.MENU;
 
-// --- Configurações do Jogo ---
+// --- Configurações de Física ---
 const GRAVITY = 0.2;
 const MAX_SPEED = 6;
 const ACCELERATION = 0.08;
-const DRAG = 0.98; // Atrito/arrasto
-
-// --- Configurações do Terreno Infinito ---
-let terrainPoints = [];
-const TERRAIN_SEGMENTS = 25;
-const TERRAIN_AMPLITUDE = 120;
-const TERRAIN_SMOOTHNESS = 40;
-let lastTerrainX = 0;
+const DRAG = 0.98;
 
 // --- Configurações do Carro ---
 const car = {
@@ -37,33 +34,91 @@ const car = {
     wheelRadius: 10
 };
 
+// --- Configurações do Terreno Infinito ---
+let terrainPoints = [];
+const TERRAIN_SEGMENTS = 25;
+const TERRAIN_AMPLITUDE = 120;
+const TERRAIN_SMOOTHNESS = 40;
+let lastTerrainX = 0;
+
 // --- Câmera e Pontuação ---
 let cameraOffset = 0;
 let distance = 0;
 let lastFrameTime = 0;
 
-// --- Controles de Teclado ---
+// --- Controles de Teclado e Toque ---
 let keys = {
     ArrowRight: false,
     ArrowLeft: false,
 };
 
 document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') {
+        keys.ArrowRight = true;
+    } else if (e.key === 'ArrowLeft') {
+        keys.ArrowLeft = true;
+    }
+});
+
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowRight') {
+        keys.ArrowRight = false;
+    } else if (e.key === 'ArrowLeft') {
+        keys.ArrowLeft = false;
+    }
+});
+const leftButton = document.getElementById('leftButton');
+const rightButton = document.getElementById('rightButton');
+
+// =======================================================
+// SEÇÃO 2: FUNÇÕES DE CONTROLE E EVENTOS
+// =======================================================
+
+// --- Redimensionar o Canvas para ser responsivo ---
+function resizeCanvas() {
+    const desiredWidth = Math.min(window.innerWidth * 0.95, 800);
+    canvas.width = desiredWidth;
+    canvas.height = desiredWidth * 0.5;
+    canvasWidth = canvas.width;
+    canvasHeight = canvas.height;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// --- Eventos de Teclado (Desktop) ---
+document.addEventListener('keydown', (e) => {
     if (keys.hasOwnProperty(e.key)) {
         keys[e.key] = true;
     }
 });
-
 document.addEventListener('keyup', (e) => {
     if (keys.hasOwnProperty(e.key)) {
         keys[e.key] = false;
     }
 });
 
-// --- Lógica de Transição de Estados ---
+// --- Eventos de Toque (Mobile) ---
+if (leftButton && rightButton) {
+    leftButton.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        keys.ArrowLeft = true;
+    });
+    leftButton.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        keys.ArrowLeft = false;
+    });
+    rightButton.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        keys.ArrowRight = true;
+    });
+    rightButton.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        keys.ArrowRight = false;
+    });
+}
 
+// --- Iniciar/Reiniciar o Jogo ---
 function startGame() {
-    // Resetar o jogo
     terrainPoints = [];
     lastTerrainX = 0;
     car.x = 100;
@@ -83,8 +138,11 @@ canvas.addEventListener('click', () => {
     }
 });
 
-// --- Funções de Terreno ---
+// =======================================================
+// SEÇÃO 3: LÓGICA DO JOGO E FÍSICA
+// =======================================================
 
+// --- Geração do Terreno ---
 function generateTerrain(numSegments) {
     if (terrainPoints.length > 0) {
         lastTerrainX = terrainPoints[terrainPoints.length - 1].x;
@@ -104,6 +162,7 @@ function generateTerrain(numSegments) {
     }
 }
 
+// --- Obter a altura do terreno em uma posição X ---
 function getTerrainY(x) {
     while (terrainPoints[0] && terrainPoints[0].x < x - canvasWidth / 2) {
         terrainPoints.shift();
@@ -122,7 +181,9 @@ function getTerrainY(x) {
     return p1.y * (1 - t) + p2.y * t;
 }
 
-// --- Funções de Desenho ---
+// =======================================================
+// SEÇÃO 4: FUNÇÕES DE DESENHO
+// =======================================================
 
 function drawTerrain() {
     ctx.beginPath();
@@ -190,7 +251,9 @@ function drawGameOver() {
     ctx.fillText('Clique para reiniciar', canvasWidth / 2 - 110, canvasHeight / 2 + 60);
 }
 
-// --- Loop Principal do Jogo ---
+// =======================================================
+// SEÇÃO 5: O LOOP PRINCIPAL DO JOGO
+// =======================================================
 
 function gameLoop(timestamp) {
     const deltaTime = timestamp - lastFrameTime;
@@ -199,55 +262,56 @@ function gameLoop(timestamp) {
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     if (currentState === GAME_STATE.PLAYING) {
-        // Lógica de Movimento do Carro
+        // --- Lógica de Movimento do Carro ---
         if (keys.ArrowRight) {
             car.speed += car.enginePower;
-        } else if (keys.ArrowLeft) {
+        }  if (keys.ArrowLeft) {
             car.speed -= car.enginePower;
         } else {
             car.speed *= DRAG;
         }
-
+        
+        // Limita a velocidade
         if (car.speed > MAX_SPEED) car.speed = MAX_SPEED;
         if (car.speed < -MAX_SPEED) car.speed = -MAX_SPEED;
 
-        // Movimento do carro com base na física
+        // Atualiza a posição do carro com base na física e velocidade
         car.x += car.speed * Math.cos(car.angle);
         car.y += car.speed * Math.sin(car.angle) + GRAVITY;
 
-        // Verificação de colisão com o terreno
+        // --- Verificação de Colisão com o Terreno ---
         const terrainY = getTerrainY(car.x);
         if (car.y + car.height / 2 > terrainY) {
             car.y = terrainY - car.height / 2;
             
-            // Simulação de "tombo" se o ângulo for muito inclinado
+            // Colisão grave (capotou o carro)
             if (Math.abs(car.angle) > Math.PI / 2.5) {
                 currentState = GAME_STATE.GAME_OVER;
             } else {
-                car.speed *= 0.95; // Atrito com o solo
+                car.speed *= 0.95;
             }
         }
 
-        // Atualiza o ângulo do carro
+        // --- Atualiza o Ângulo do Carro ---
         const nextTerrainY = getTerrainY(car.x + 10);
         const prevTerrainY = getTerrainY(car.x - 10);
         car.angle = Math.atan2(nextTerrainY - prevTerrainY, 20);
 
-        // Atualiza a câmera e a distância percorrida
+        // --- Atualiza Câmera e Distância ---
         cameraOffset = car.x - canvasWidth / 2;
         distance = car.x / 50;
 
-        // Gerar mais terreno se necessário
+        // --- Geração Dinâmica do Terreno ---
         if (car.x > lastTerrainX - canvasWidth) {
             generateTerrain(10);
         }
 
-        // Desenha os elementos do jogo
+        // --- Desenha os elementos do jogo ---
         drawTerrain();
         drawCar();
         drawScore();
 
-        // Loop de animação
+        // --- Continua o loop de animação ---
         if (currentState === GAME_STATE.PLAYING) {
             requestAnimationFrame(gameLoop);
         }
