@@ -1,138 +1,156 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Dimensões do jogo
 const canvasWidth = canvas.width;
 const canvasHeight = canvas.height;
 
-// Configurações do jogador
-const playerCarWidth = 50;
-const playerCarHeight = 80;
-let playerCarX = (canvasWidth - playerCarWidth) / 2;
-let playerCarY = canvasHeight - playerCarHeight - 10;
-const playerCarSpeed = 5;
+// --- Configurações do Jogo ---
+const GRAVITY = 0.2;
+const MAX_SPEED = 5;
+const ACCELERATION = 0.05;
+const FRICTION = 0.01;
 
-// Configurações dos carros inimigos
-const enemyCarWidth = 50;
-const enemyCarHeight = 80;
-const enemyCarSpeed = 3;
-let enemyCars = [];
-const enemySpawnInterval = 1000; // 1 segundo
-let lastEnemySpawnTime = 0;
+// --- Configurações do Terreno ---
+let terrainPoints = [];
+const TERRAIN_SEGMENTS = 20;
+const TERRAIN_AMPLITUDE = 100;
+const TERRAIN_SMOOTHNESS = 40;
 
-// Configurações do jogo
-let score = 0;
-let gameOver = false;
+// --- Configurações do Carro ---
+const car = {
+    x: 100,
+    y: 100,
+    width: 60,
+    height: 25,
+    speed: 0,
+    angle: 0,
+    enginePower: 0.1,
+    wheelRadius: 10,
+    frontWheelX: 0,
+    backWheelX: 0
+};
 
-// Eventos de teclado
-let rightPressed = false;
-let leftPressed = false;
+// --- Funções de Início ---
+
+function generateTerrain() {
+    let y = canvasHeight / 2;
+    for (let i = 0; i < TERRAIN_SEGMENTS; i++) {
+        const x = (canvasWidth / (TERRAIN_SEGMENTS - 1)) * i;
+        y += (Math.random() - 0.5) * TERRAIN_AMPLITUDE;
+        terrainPoints.push({ x, y });
+    }
+}
+
+function getTerrainY(x) {
+    if (x < 0) return terrainPoints[0].y;
+    if (x >= canvasWidth) return terrainPoints[terrainPoints.length - 1].y;
+
+    const segment = Math.floor(x / (canvasWidth / (TERRAIN_SEGMENTS - 1)));
+    const p1 = terrainPoints[segment];
+    const p2 = terrainPoints[segment + 1];
+
+    if (!p1 || !p2) return canvasHeight / 2;
+
+    const t = (x - p1.x) / (p2.x - p1.x);
+    return p1.y * (1 - t) + p2.y * t;
+}
+
+// --- Desenhos ---
+
+function drawTerrain() {
+    ctx.beginPath();
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 4;
+    ctx.moveTo(0, canvasHeight);
+    for (let i = 0; i < terrainPoints.length; i++) {
+        ctx.lineTo(terrainPoints[i].x, terrainPoints[i].y);
+    }
+    ctx.lineTo(canvasWidth, canvasHeight);
+    ctx.closePath();
+    ctx.fillStyle = '#8B4513'; // Cor da terra
+    ctx.fill();
+    ctx.stroke();
+}
+
+function drawCar() {
+    // Corpo do carro
+    ctx.save();
+    ctx.translate(car.x, car.y);
+    ctx.rotate(car.angle);
+    ctx.fillStyle = 'blue';
+    ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
+
+    // Rodas (desenhadas com a rotação do carro)
+    ctx.fillStyle = '#000';
+    
+    // Roda traseira
+    ctx.beginPath();
+    ctx.arc(-car.width / 2, car.height / 2, car.wheelRadius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Roda dianteira
+    ctx.beginPath();
+    ctx.arc(car.width / 2, car.height / 2, car.wheelRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+// --- Lógica de Controles ---
+
+let keys = {
+    ArrowRight: false,
+    ArrowLeft: false,
+};
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowRight') {
-        rightPressed = true;
-    } else if (e.key === 'ArrowLeft') {
-        leftPressed = true;
+    if (keys.hasOwnProperty(e.key)) {
+        keys[e.key] = true;
     }
 });
 
 document.addEventListener('keyup', (e) => {
-    if (e.key === 'ArrowRight') {
-        rightPressed = false;
-    } else if (e.key === 'ArrowLeft') {
-        leftPressed = false;
+    if (keys.hasOwnProperty(e.key)) {
+        keys[e.key] = false;
     }
 });
 
-// Desenha o carro do jogador
-function drawPlayerCar() {
-    ctx.fillStyle = 'blue';
-    ctx.fillRect(playerCarX, playerCarY, playerCarWidth, playerCarHeight);
-}
+// --- Loop Principal do Jogo ---
 
-// Desenha os carros inimigos
-function drawEnemyCars() {
-    ctx.fillStyle = 'red';
-    enemyCars.forEach(car => {
-        ctx.fillRect(car.x, car.y, enemyCarWidth, enemyCarHeight);
-    });
-}
-
-// Atualiza a posição dos carros inimigos e remove os que saem da tela
-function updateEnemyCars() {
-    enemyCars.forEach(car => {
-        car.y += enemyCarSpeed;
-    });
-
-    enemyCars = enemyCars.filter(car => car.y < canvasHeight);
-}
-
-// Verifica colisão
-function checkCollision() {
-    enemyCars.forEach(car => {
-        if (
-            playerCarX < car.x + enemyCarWidth &&
-            playerCarX + playerCarWidth > car.x &&
-            playerCarY < car.y + enemyCarHeight &&
-            playerCarY + playerCarHeight > car.y
-        ) {
-            gameOver = true;
-        }
-    });
-}
-
-// Adiciona um novo carro inimigo
-function spawnEnemyCar() {
-    const randomX = Math.random() * (canvasWidth - enemyCarWidth);
-    enemyCars.push({ x: randomX, y: -enemyCarHeight });
-}
-
-// Desenha a pontuação
-function drawScore() {
-    ctx.fillStyle = '#fff';
-    ctx.font = '20px Arial';
-    ctx.fillText('Pontos: ' + score, 10, 30);
-}
-
-// Loop principal do jogo
-function gameLoop(timestamp) {
-    if (gameOver) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-        ctx.fillStyle = '#fff';
-        ctx.font = '40px Arial';
-        ctx.fillText('Game Over', canvasWidth / 2 - 100, canvasHeight / 2);
-        ctx.font = '20px Arial';
-        ctx.fillText('Pontuação final: ' + score, canvasWidth / 2 - 80, canvasHeight / 2 + 40);
-        return;
-    }
-
-    // Limpa o canvas
+function gameLoop() {
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-    // Movimento do jogador
-    if (rightPressed && playerCarX < canvasWidth - playerCarWidth) {
-        playerCarX += playerCarSpeed;
-    } else if (leftPressed && playerCarX > 0) {
-        playerCarX -= playerCarSpeed;
+    // Lógica do Carro
+    if (keys.ArrowRight) {
+        car.speed += car.enginePower;
     }
-
-    // Gerar novos carros inimigos
-    if (timestamp - lastEnemySpawnTime > enemySpawnInterval) {
-        spawnEnemyCar();
-        lastEnemySpawnTime = timestamp;
-        score += 10;
+    if (keys.ArrowLeft) {
+        car.speed -= car.enginePower;
     }
+    
+    // Simulação de atrito
+    car.speed *= 0.98;
 
-    // Atualiza e desenha
-    updateEnemyCars();
-    drawEnemyCars();
-    drawPlayerCar();
-    checkCollision();
-    drawScore();
+    // Atualiza a posição do carro
+    car.x += car.speed * Math.cos(car.angle);
+    car.y += car.speed * Math.sin(car.angle);
+
+    // Verifica a altura do terreno
+    const terrainY = getTerrainY(car.x);
+    car.y = terrainY - car.height;
+
+    // Atualiza o ângulo do carro baseado na inclinação do terreno
+    const nextTerrainY = getTerrainY(car.x + 10);
+    const prevTerrainY = getTerrainY(car.x - 10);
+    car.angle = Math.atan2(nextTerrainY - prevTerrainY, 20);
+
+    // Desenha tudo
+    drawTerrain();
+    drawCar();
 
     requestAnimationFrame(gameLoop);
 }
 
-// Inicia o jogo
-gameLoop(0);
+// --- Iniciar o Jogo ---
+generateTerrain();
+gameLoop();
